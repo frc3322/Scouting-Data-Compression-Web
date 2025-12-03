@@ -1,6 +1,10 @@
 # FRC Scouting Data Compression - Rust/WebAssembly
 
-A Rust implementation of the FRC scouting data compression system with WebAssembly bindings for web frontend use. Encodes CSV scouting data into visual images using AprilTags, zstandard compression, and color encoding.
+A Rust implementation of [https://github.com/frc3322/Scouting-Data-Compression](https://github.com/frc3322/Scouting-Data-Compression) with WebAssembly bindings for web frontend use. Encodes CSV scouting data into visual images using AprilTags, zstandard compression, and color encoding.
+
+See [Python Implementation](https://github.com/frc3322/Scouting-Data-Compression) for decoding tags (only python supports this).
+
+<img width="320" height="320" alt="MatchData_resized_8x" src="https://github.com/user-attachments/assets/b0144fe2-e985-48b7-9459-d29c621a7d37" />
 
 ## Features
 
