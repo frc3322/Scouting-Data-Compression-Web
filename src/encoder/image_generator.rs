@@ -109,7 +109,7 @@ pub fn create_encoded_image(
     for (i, &(row, col)) in pixel_coords.iter().enumerate() {
         if i < encoded_colors.len() {
             let bgr = encoded_colors[i];
-            image.put_pixel(col as u32, row as u32, Rgb([bgr.0, bgr.1, bgr.2]));
+            image.put_pixel(col as u32, row as u32, Rgb([bgr.2, bgr.1, bgr.0]));
         }
     }
     
@@ -119,7 +119,7 @@ pub fn create_encoded_image(
     for (i, &calibration_color) in calibration_colors.iter().enumerate() {
         let coord_index = pixels_available - calibration_pixels_needed + i;
         let (row, col) = pixel_coords[coord_index];
-        image.put_pixel(col as u32, row as u32, Rgb([calibration_color.0, calibration_color.1, calibration_color.2]));
+        image.put_pixel(col as u32, row as u32, Rgb([calibration_color.2, calibration_color.1, calibration_color.0]));
     }
     
     Ok(image)
