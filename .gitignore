@@ -1,0 +1,8 @@
+target/
+Cargo.lock
+wasm/pkg/
+*.png
+*.packed
+*.csv
+.DS_Store
+
