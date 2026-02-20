@@ -26,7 +26,8 @@ Scouting-Data-Compression-Web/
 │   ├── api.rs              # High-level encode API
 │   ├── common/             # Shared utilities
 │   │   ├── schema.rs       # Schema loading/validation
-│   │   ├── constants.rs    # Color palettes
+│   │   ├── constants.rs    # Default color sequence
+│   │   ├── color_palette.rs # Palette loading/parsing
 │   │   ├── data_regions.rs # Data region calculation
 │   │   └── apriltag.rs     # AprilTag generation
 │   └── encoder/            # Encoding components
@@ -46,17 +47,63 @@ Scouting-Data-Compression-Web/
 
 ### Prerequisites
 
-- Rust 1.70+ (install from [rustup.rs](https://rustup.rs/))
-- wasm-pack (for building WASM: `cargo install wasm-pack`)
+- **Rust 1.70+** — [rustup.rs](https://rustup.rs/)
+- **wasm-pack** (for browser builds only): `cargo install wasm-pack`
 
-### Build
+---
+
+### Installation for Command Line / Rust
 
 ```bash
-# Build the main library
+git clone <repository-url>
+cd Scouting-Data-Compression-Web
 cargo build --release
+```
 
-# Build WASM package
+---
+
+### Installation for JavaScript / Browser Projects
+
+This project has no npm package. You build the WASM binary and copy it into your project.
+
+**1. Clone and build the WASM package:**
+
+```bash
+git clone <repository-url>
+cd Scouting-Data-Compression-Web
 ./scripts/build-wasm.sh
+```
+
+This produces `wasm/pkg/` containing:
+
+- `scouting_data_compression_wasm.js` — ES module loader
+- `scouting_data_compression_wasm_bg.wasm` — WASM binary
+
+**2. Copy `pkg` into your web project:**
+
+| Project layout   | Copy from                    | Copy to         | Import path                          |
+|------------------|-----------------------------|-----------------|--------------------------------------|
+| Vanilla (no bundler) | `wasm/pkg/`              | `public/pkg/`   | `./pkg/scouting_data_compression_wasm.js` |
+| Vite             | `wasm/pkg/`                 | `public/pkg/`   | `./pkg/scouting_data_compression_wasm.js` |
+| Create React App | `wasm/pkg/`                 | `public/pkg/`   | `./pkg/scouting_data_compression_wasm.js` |
+
+```bash
+# Example: copy into a project with a public folder
+cp -r wasm/pkg /path/to/your-project/public/
+```
+
+**3. Serve over HTTP.** ES modules and WASM require a web server (do not use `file://`). Use `npx serve public`, `python -m http.server`, or your framework’s dev server.
+
+**Other setups:** If your project uses `static/`, `assets/`, or another folder, copy `pkg` there and adjust the import path accordingly. Most bundlers (Vite, webpack) handle `.wasm` automatically.
+
+**4. Import and use:**
+
+```javascript
+import init, { encode_csv_to_image } from './pkg/scouting_data_compression_wasm.js';
+
+await init();
+const csvBytes = new TextEncoder().encode(csvText);
+const imageBytes = encode_csv_to_image(csvBytes, null, null);
 ```
 
 ## Usage
@@ -72,17 +119,18 @@ Encode CSV data to an image:
 # With custom output paths
 ./scripts/encode.sh input.csv output.png packed.packed
 
-# With custom schema
-./scripts/encode.sh input.csv output.png --schema schema.json
+# With custom schema (must specify all 3 positional args before flags)
+./scripts/encode.sh input.csv output.png packed.packed --schema schema.json
 
 # With custom palette
-./scripts/encode.sh input.csv output.png --palette palette.json
+./scripts/encode.sh input.csv output.png packed.packed --palette palette.json
 ```
 
 Or use cargo directly:
 
 ```bash
 cargo run --bin encode -- input.csv [output.png] [packed.packed] [--schema schema.json] [--palette palette.json]
+# When using --schema or --palette, provide all 3 positional args first.
 ```
 
 ### Programmatic API
@@ -106,17 +154,7 @@ std::fs::write("output.packed", &result.packed_data)?;
 
 ### WebAssembly (Browser)
 
-#### Setup
-
-First, build the WASM package:
-
-```bash
-./scripts/build-wasm.sh
-```
-
-This generates the WASM package in `wasm/pkg/`. Copy the `pkg` directory to your web project's public assets folder.
-
-#### Basic Usage
+After installing (see [Installation for JavaScript / Browser Projects](#installation-for-javascript--browser-projects)), import the WASM module and use it.
 
 **Vanilla JavaScript Example:**
 
@@ -132,7 +170,7 @@ This generates the WASM package in `wasm/pkg/`. Copy the `pkg` directory to your
     <img id="output" style="display: none;" />
     
     <script type="module">
-        import init, { encode_csv_to_image } from './wasm/pkg/scouting_data_compression_wasm.js';
+        import init, { encode_csv_to_image } from './pkg/scouting_data_compression_wasm.js';
         
         let wasmInitialized = false;
         
@@ -207,7 +245,7 @@ This generates the WASM package in `wasm/pkg/`. Copy the `pkg` directory to your
 
 ```jsx
 import React, { useState, useRef } from 'react';
-import init, { encode_csv_to_image } from './wasm/pkg/scouting_data_compression_wasm.js';
+import init, { encode_csv_to_image } from './pkg/scouting_data_compression_wasm.js';
 
 function ScoutingEncoder() {
     const [imageUrl, setImageUrl] = useState(null);
@@ -298,7 +336,7 @@ export default ScoutingEncoder;
 #### Advanced: Custom Schema and Palette
 
 ```javascript
-import init, { encode_csv_to_image } from './wasm/pkg/scouting_data_compression_wasm.js';
+import init, { encode_csv_to_image } from './pkg/scouting_data_compression_wasm.js';
 
 async function encodeWithCustomSchema(csvText, schemaJson, paletteJson) {
     await init();
@@ -366,7 +404,7 @@ encodeWithCustomSchema(csvText, customSchema, customPalette)
 </div>
 
 <script type="module">
-    import init, { encode_csv_to_image } from './wasm/pkg/scouting_data_compression_wasm.js';
+    import init, { encode_csv_to_image } from './pkg/scouting_data_compression_wasm.js';
     
     await init();
     
@@ -431,7 +469,7 @@ encodeWithCustomSchema(csvText, customSchema, customPalette)
 #### Error Handling Best Practices
 
 ```javascript
-import init, { encode_csv_to_image } from './wasm/pkg/scouting_data_compression_wasm.js';
+import init, { encode_csv_to_image } from './pkg/scouting_data_compression_wasm.js';
 
 async function encodeWithErrorHandling(csvText, schemaJson = null, paletteJson = null) {
     try {
@@ -482,7 +520,7 @@ async function encodeWithErrorHandling(csvText, schemaJson = null, paletteJson =
 
 ```javascript
 // worker.js
-import init, { encode_csv_to_image } from './wasm/pkg/scouting_data_compression_wasm.js';
+import init, { encode_csv_to_image } from './pkg/scouting_data_compression_wasm.js';
 
 let wasmInitialized = false;
 
@@ -544,14 +582,14 @@ function encodeInWorker(csvText, schemaJson = null, paletteJson = null) {
 
 ## API Reference
 
-### `encode_csv_to_image(csv_bytes, schema_bytes, palette_bytes) -> EncodeResult`
+### Rust: `encode_csv_to_image(csv_bytes, schema_bytes, palette_bytes) -> Result<EncodeResult>`
 
 Encode CSV data into an image with AprilTags.
 
 **Parameters:**
 - `csv_bytes`: CSV file content as bytes
 - `schema_bytes`: Optional schema JSON bytes. If None, uses default schema.
-- `palette_bytes`: Optional color palette JSON bytes. If None, uses default 4-color palette.
+- `palette_bytes`: Optional color palette JSON bytes. If None, uses default palette.
 
 **Returns:** `EncodeResult` containing:
 - `image_bytes`: PNG image bytes
@@ -559,6 +597,10 @@ Encode CSV data into an image with AprilTags.
 
 **Errors:**
 - Returns `anyhow::Error` for file I/O errors, schema validation errors, or encoding failures.
+
+### WebAssembly: `encode_csv_to_image(csv, schema, palette) -> Uint8Array`
+
+Same parameters. Returns PNG image bytes directly (packed_data not exposed in WASM).
 
 ## Schema Format
 
