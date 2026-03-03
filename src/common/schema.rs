@@ -2,6 +2,107 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::Path;
 
+#[derive(Deserialize)]
+#[serde(tag = "kind")]
+enum RawColumnSchema {
+    #[serde(rename = "int")]
+    Int {
+        name: String,
+        bits: Option<u32>,
+        int_max: Option<u64>,
+    },
+    #[serde(rename = "enum")]
+    Enum {
+        name: String,
+        bits: Option<u32>,
+        values: Vec<String>,
+    },
+}
+
+fn resolve_raw_schema(
+    raw: Vec<RawColumnSchema>,
+    warnings: &mut Vec<String>,
+) -> Result<Vec<ColumnSchema>, anyhow::Error> {
+    let mut resolved = Vec::with_capacity(raw.len());
+    for col in raw {
+        match col {
+            RawColumnSchema::Int { name, bits, int_max } => {
+                let (resolved_bits, resolved_int_max) = match (bits, int_max) {
+                    (None, None) => {
+                        return Err(anyhow::anyhow!(
+                            "int column '{}': must provide 'bits' or 'int_max'",
+                            name
+                        ));
+                    }
+                    (Some(b), Some(m)) => {
+                        let bits_needed = if m == 0 {
+                            0u32
+                        } else {
+                            ((m as f64 + 1.0).log2().ceil()) as u32
+                        };
+                        let effective_bits = b.min(bits_needed);
+                        let effective_int_max = m.min(if effective_bits > 0 {
+                            (1u64 << effective_bits) - 1
+                        } else {
+                            0
+                        });
+                        warnings.push(format!(
+                            "Column '{}': both 'bits' and 'int_max' provided; \
+                             using bits={}, int_max={}",
+                            name, effective_bits, effective_int_max
+                        ));
+                        (effective_bits, effective_int_max)
+                    }
+                    (Some(b), None) => {
+                        let m = if b > 0 { (1u64 << b) - 1 } else { 0 };
+                        (b, m)
+                    }
+                    (None, Some(m)) => {
+                        let b = if m == 0 {
+                            0u32
+                        } else {
+                            ((m as f64 + 1.0).log2().ceil()) as u32
+                        };
+                        (b, m)
+                    }
+                };
+                resolved.push(ColumnSchema::Int {
+                    name,
+                    bits: resolved_bits,
+                    int_max: resolved_int_max,
+                });
+            }
+            RawColumnSchema::Enum { name, bits, values } => {
+                let count = values.len();
+                let bits_needed = if count <= 1 {
+                    0u32
+                } else {
+                    (count as f64).log2().ceil() as u32
+                };
+                let resolved_bits = match bits {
+                    Some(b) => {
+                        let effective_bits = b.min(bits_needed);
+                        if b != effective_bits {
+                            warnings.push(format!(
+                                "Column '{}': 'bits' provided with 'values'; using bits={}",
+                                name, effective_bits
+                            ));
+                        }
+                        effective_bits
+                    }
+                    None => bits_needed,
+                };
+                resolved.push(ColumnSchema::Enum {
+                    name,
+                    bits: resolved_bits,
+                    values,
+                });
+            }
+        }
+    }
+    Ok(resolved)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ColumnKind {
     Int,
@@ -248,21 +349,39 @@ pub fn load_schema_from_json(path: &Path) -> Result<Vec<ColumnSchema>, anyhow::E
     }
 
     let content = std::fs::read_to_string(path)?;
-    let schema: Vec<ColumnSchema> = serde_json::from_str(&content)
+    let raw: Vec<RawColumnSchema> = serde_json::from_str(&content)
         .map_err(|e| anyhow::anyhow!("Invalid JSON in schema file: {}", e))?;
 
+    let mut warnings = Vec::new();
+    let schema = resolve_raw_schema(raw, &mut warnings)?;
+    for w in &warnings {
+        eprintln!("[schema warning] {}", w);
+    }
     validate_schema(&schema)?;
     Ok(schema)
 }
 
 pub fn load_schema(schema_bytes: Option<&[u8]>) -> Result<Vec<ColumnSchema>, anyhow::Error> {
+    let (schema, warnings) = load_schema_with_warnings(schema_bytes)?;
+    for w in &warnings {
+        eprintln!("[schema warning] {}", w);
+    }
+    Ok(schema)
+}
+
+/// Like `load_schema` but returns resolution warnings instead of printing them.
+pub fn load_schema_with_warnings(
+    schema_bytes: Option<&[u8]>,
+) -> Result<(Vec<ColumnSchema>, Vec<String>), anyhow::Error> {
     match schema_bytes {
-        None => Ok(get_default_schema()),
+        None => Ok((get_default_schema(), Vec::new())),
         Some(bytes) => {
-            let schema: Vec<ColumnSchema> = serde_json::from_slice(bytes)
+            let raw: Vec<RawColumnSchema> = serde_json::from_slice(bytes)
                 .map_err(|e| anyhow::anyhow!("Invalid JSON in schema: {}", e))?;
+            let mut warnings = Vec::new();
+            let schema = resolve_raw_schema(raw, &mut warnings)?;
             validate_schema(&schema)?;
-            Ok(schema)
+            Ok((schema, warnings))
         }
     }
 }
