@@ -1,15 +1,22 @@
 use image::{GrayImage, Rgb, RgbImage};
-use std::path::PathBuf;
 
 pub fn get_april_tag_size() -> usize {
     8
 }
 
+static TAG_0_BYTES: &[u8] = include_bytes!("assets/tag36_11_00000.png");
+static TAG_1_BYTES: &[u8] = include_bytes!("assets/tag36_11_00001.png");
+static TAG_2_BYTES: &[u8] = include_bytes!("assets/tag36_11_00002.png");
+
 pub fn load_april_tag(tag_id: u32) -> Result<GrayImage, anyhow::Error> {
-    let tag_filename = format!("tag36_11_{:05}.png", tag_id);
-    let tag_path = get_asset_path(&tag_filename)?;
-    
-    let img = image::open(&tag_path)?;
+    let bytes = match tag_id {
+        0 => TAG_0_BYTES,
+        1 => TAG_1_BYTES,
+        2 => TAG_2_BYTES,
+        _ => return Err(anyhow::anyhow!("Unknown AprilTag id: {}", tag_id)),
+    };
+
+    let img = image::load_from_memory(bytes)?;
     let gray = img.to_luma8();
     
     let width = gray.width() as usize;
@@ -90,17 +97,4 @@ fn place_tag(
     Ok(())
 }
 
-fn get_asset_path(filename: &str) -> Result<PathBuf, anyhow::Error> {
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.push("src");
-    path.push("common");
-    path.push("assets");
-    path.push(filename);
-    
-    if !path.exists() {
-        return Err(anyhow::anyhow!("AprilTag image not found: {}", path.display()));
-    }
-    
-    Ok(path)
-}
 
