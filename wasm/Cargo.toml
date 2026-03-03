@@ -1,11 +1,11 @@
 [package]
 name = "scouting-data-compression-wasm"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2021"
 description = "FRC scouting data compression - encode CSV to AprilTag image (WASM)"
 license = "MIT"
 repository = "https://github.com/frc3322/Scouting-Data-Compression-Web"
-readme = "../README.md"
+readme = "README.md"
 
 [lib]
 crate-type = ["cdylib"]
